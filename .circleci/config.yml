@@ -1,31 +1,90 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
+# CircleCI pipeline for cicd-training-2026
 # See: https://circleci.com/docs/reference/configuration-reference/
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#jobs-overview & https://circleci.com/docs/reference/configuration-reference/#jobs
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/guides/execution-managed/executor-intro/ & https://circleci.com/docs/reference/configuration-reference/#executor-job
+  # 1. Compile, run the unit tests and package the jar
+  build-and-test:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
-
-    # Add steps to the job
-    # See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#steps-overview & https://circleci.com/docs/reference/configuration-reference/#steps
+      - image: cimg/openjdk:21.0   # Java 21 + Maven
     steps:
-      # Checkout the code as the first step.
       - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/guides/orchestrate/workflows/ & https://circleci.com/docs/reference/configuration-reference/#workflows
+      # Reuse downloaded Maven dependencies between runs
+      - restore_cache:
+          keys:
+            - maven-deps-v1-{{ checksum "pom.xml" }}
+            - maven-deps-v1-
+
+      - run:
+          name: Download dependencies
+          command: mvn -B dependency:go-offline
+
+      - save_cache:
+          key: maven-deps-v1-{{ checksum "pom.xml" }}
+          paths:
+            - ~/.m2/repository
+
+      - run:
+          name: Run tests
+          command: mvn -B test
+
+      # Show test results in the CircleCI "Tests" tab
+      - store_test_results:
+          path: target/surefire-reports
+
+      - run:
+          name: Package jar
+          command: mvn -B package -DskipTests
+
+      # Downloadable from the CircleCI "Artifacts" tab
+      - store_artifacts:
+          path: target/app.jar
+          destination: app.jar
+
+  # 2. Build the Docker image and smoke test it
+  docker-build:
+    machine:
+      image: ubuntu-2204:current   # VM with Docker installed
+    steps:
+      - checkout
+
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t cicd-training-2026:${CIRCLE_SHA1:0:7} .
+
+      - run:
+          name: Start container
+          command: |
+            docker run -d --name app -p 8080:8080 \
+              -e APP_VERSION=${CIRCLE_SHA1:0:7} \
+              cicd-training-2026:${CIRCLE_SHA1:0:7}
+
+      - run:
+          name: Smoke test /health
+          command: |
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8080/health; then
+                echo
+                echo "App is up"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "App did not become healthy in time"
+            docker logs app
+            exit 1
+
+      - run:
+          name: Container logs
+          command: docker logs app
+          when: always
+
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  build-test-docker:
     jobs:
-      - say-hello
+      - build-and-test
+      - docker-build:
+          requires:
+            - build-and-test
