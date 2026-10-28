@@ -32,7 +32,7 @@ class HelloControllerTest {
 
     @Test
     void helloUsesNameParam() throws Exception {
-        mockMvc.perform(get("/api/hello").param("name", "Scott Logic"))
+        mockMvc.perform(get("/api/hello").param("name", "Scott Logicsssss"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Hello, Scott Logic!"));
     }
