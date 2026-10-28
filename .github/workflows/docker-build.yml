@@ -1,18 +1,46 @@
-name: 2 - Docker build
+name: 2 - Docker build and release
 
 # Run manually from the Actions tab ("Run workflow" button)
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v1.0.0). Leave blank to use build-<run number>'
+        required: false
+        default: ''
+
+# Needed so the workflow can create a release
+permissions:
+  contents: write
 
 jobs:
   docker-build:
     runs-on: ubuntu-latest
+    env:
+      IMAGE: cicd-training-2026
+      VERSION: ${{ inputs.version != '' && inputs.version || format('build-{0}', github.run_number) }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v5
 
       - name: Build the Docker image
-        run: docker build -t cicd-training-2026:${{ github.sha }} .
+        run: docker build -t "$IMAGE:$VERSION" .
 
-      - name: List the image
-        run: docker image ls cicd-training-2026
+      - name: Save the image to a file
+        run: docker save "$IMAGE:$VERSION" | gzip > "$IMAGE-$VERSION.tar.gz"
+
+      - name: Create a GitHub release with the image attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" "$IMAGE-$VERSION.tar.gz" \
+            --target "$GITHUB_SHA" \
+            --title "$IMAGE $VERSION" \
+            --notes "Docker image built from commit $GITHUB_SHA.
+
+          To run it:
+          \`\`\`
+          docker load -i $IMAGE-$VERSION.tar.gz
+          docker run --rm -p 8080:8080 $IMAGE:$VERSION
+          \`\`\`
+          Then open http://localhost:8080"
