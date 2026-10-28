@@ -1,0 +1,12 @@
+name: 1 - Hello James
+
+# Run manually from the Actions tab ("Run workflow" button)
+on:
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo "Hello James"
