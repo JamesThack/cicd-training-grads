@@ -32,5 +32,14 @@ jobs:
           path: target/surefire-reports
 
       # Only reached if the tests passed
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Build the Docker image
-        run: docker build -t cicd-training-2026:${{ github.sha }} .
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: cicd-training-2026:${{ github.sha }}
+          load: true
+          cache-from: type=gha, scope=backend
+          cache-to: type=gha,mode=max, scope=backend
