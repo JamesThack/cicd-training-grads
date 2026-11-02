@@ -40,6 +40,5 @@ jobs:
         with:
           context: .
           tags: cicd-training-2026:${{ github.sha }}
-          load: true
           cache-from: type=gha, scope=backend
           cache-to: type=gha,mode=max, scope=backend
