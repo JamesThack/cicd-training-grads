@@ -11,6 +11,10 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
+
+      - name: Check Secret Works
+        run: echo "Hello my name is ${{ secrets.NAME }}"
+
       - name: Check out the code
         uses: actions/checkout@v5
 
