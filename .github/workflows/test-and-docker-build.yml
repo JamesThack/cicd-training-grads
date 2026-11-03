@@ -8,8 +8,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-and-build:
+  test:
+    name: Unit tests (${{ matrix.test-class }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test-class:
+          - HelloControllerTest
+          - CicdTrainingApplicationTests
+
     steps:
       - name: Check out the code
         uses: actions/checkout@v5
@@ -22,15 +30,22 @@ jobs:
           cache: maven   # reuse downloaded dependencies between runs
 
       - name: Run unit tests
-        run: mvn -B test
+        run: mvn -B -Dtest="${{ matrix.test-class }}" test
 
       - name: Upload test reports
         if: always()     # keep the reports even when tests fail
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
+          name: test-reports-${{ matrix.test-class }}
           path: target/surefire-reports
 
-      # Only reached if the tests passed
+  build:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
       - name: Build the Docker image
         run: docker build -t cicd-training-2026:${{ github.sha }} .
